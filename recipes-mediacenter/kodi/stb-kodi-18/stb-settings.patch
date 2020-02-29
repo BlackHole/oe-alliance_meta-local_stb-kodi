@@ -1,0 +1,343 @@
+From cf13430c6e3197312d54dd93014966ae851d1ba4 Mon Sep 17 00:00:00 2001
+From: root <root@ns3121835.ip-51-68-180.eu>
+Date: Sat, 24 Aug 2019 20:26:11 +0000
+Subject: [PATCH] stb-settings
+
+---
+ addons/skin.estouchy/xml/Home.xml              |  2 +-
+ addons/skin.estuary/xml/Home.xml               |  2 +-
+ cmake/scripts/common/Macros.cmake              |  2 +-
+ system/settings/settings.xml                   | 16 ++++-------
+ tools/Linux/kodi.sh.in                         | 38 +++++++++++++++++++------
+ xbmc/guilib/guiinfo/SystemGUIInfo.cpp          |  4 +++
+ xbmc/input/InputManager.cpp                    | 12 ++++++++
+ xbmc/platform/linux/input/LibInputKeyboard.cpp | 31 +++++++++++++++++++-
+ xbmc/utils/CPUInfo.cpp                         | 39 ++++++++++++++++++++++++++
+ xbmc/view/ViewStateSettings.cpp                |  2 +-
+ 10 files changed, 123 insertions(+), 25 deletions(-)
+
+diff --git a/addons/skin.estouchy/xml/Home.xml b/addons/skin.estouchy/xml/Home.xml
+index 9979e08..f19bf8e 100644
+--- a/addons/skin.estouchy/xml/Home.xml
++++ b/addons/skin.estouchy/xml/Home.xml
+@@ -183,7 +183,7 @@
+ 				<content>
+ 					<item>
+ 						<label>13012</label>
+-						<onclick>Shutdown</onclick>
++						<onclick>XBMC.Quit()</onclick>
+ 						<icon>icon_button_shutdown.png</icon>
+ 					</item>
+ 					<item>
+diff --git a/addons/skin.estuary/xml/Home.xml b/addons/skin.estuary/xml/Home.xml
+index 5b70e246..c622a39 100644
+--- a/addons/skin.estuary/xml/Home.xml
++++ b/addons/skin.estuary/xml/Home.xml
+@@ -1005,7 +1005,7 @@
+ 					<align>justify</align>
+ 					<include content="IconButton">
+ 						<param name="control_id" value="804" />
+-						<param name="onclick" value="ActivateWindow(shutdownmenu)" />
++						<param name="onclick" value="XBMC.Quit()" />
+ 						<param name="icon" value="icons/power.png" />
+ 						<param name="label" value="$LOCALIZE[33060]" />
+ 					</include>
+diff --git a/cmake/scripts/common/Macros.cmake b/cmake/scripts/common/Macros.cmake
+index eefd7c8..239d835 100644
+--- a/cmake/scripts/common/Macros.cmake
++++ b/cmake/scripts/common/Macros.cmake
+@@ -646,7 +646,7 @@ function(core_find_git_rev stamp)
+         string(REPLACE "\"" "" HASH ${HASH})
+ 
+         if(status_code)
+-          string(CONCAT HASH ${HASH} "-dirty")
++          string(CONCAT HASH ${HASH} "-stb")
+         endif()
+ 
+       # get HEAD commit date
+diff --git a/system/settings/settings.xml b/system/settings/settings.xml
+index 19cfe2d..f9364ce 100755
+--- a/system/settings/settings.xml
++++ b/system/settings/settings.xml
+@@ -574,7 +574,7 @@
+           <control type="spinner" format="integer" delayed="true"/>
+         </setting>
+         <setting id="subtitles.font" type="string" label="14089" help="36185">
+-          <level>1</level>
++          <level>3</level>
+           <default>arial.ttf</default>
+           <constraints>
+             <options>fonts</options>
+@@ -582,7 +582,7 @@
+           <control type="list" format="string" />
+         </setting>
+         <setting id="subtitles.charset" type="string" parent="subtitles.font" label="735" help="36189">
+-          <level>1</level>
++          <level>3</level>
+           <default>DEFAULT</default>
+           <constraints>
+             <options>charsets</options>
+@@ -2494,7 +2494,7 @@
+         <setting id="audiooutput.processquality" type="integer" label="13505" help="36169">
+           <requirement>HAS_AE_QUALITY_LEVELS</requirement>
+           <level>2</level>
+-          <default>30</default> <!-- AE_QUALITY_MID -->
++          <default>20</default> <!-- AE_QUALITY_MID -->
+           <constraints>
+             <options>aequalitylevels</options>
+           </constraints>
+@@ -2512,7 +2512,7 @@
+         </setting>
+         <setting id="audiooutput.samplerate" type="integer" label="458" help="36523">
+           <level>2</level>
+-          <default>48000</default>
++          <default>44100</default>
+           <dependencies>
+             <dependency type="visible">
+               <and>
+@@ -2524,12 +2524,6 @@
+           <constraints>
+             <options>
+               <option label="34124">44100</option>
+-              <option label="34125">48000</option>
+-              <option label="34126">88200</option>
+-              <option label="34127">96000</option>
+-              <option label="34128">192000</option>
+-              <option label="34129">352800</option>
+-              <option label="34130">384000</option>
+             </options>
+           </constraints>
+           <control type="list" format="integer" />
+@@ -3297,7 +3291,7 @@
+       <group id="2" label="14270">
+         <setting id="locale.country" type="string" label="14271" help="36115">
+           <level>0</level>
+-          <default>USA (12h)</default>
++          <default>Central Europe</default>
+           <constraints>
+             <options>regions</options>
+           </constraints>
+diff --git a/tools/Linux/kodi.sh.in b/tools/Linux/kodi.sh.in
+index ee0a06f..0b28172 100644
+--- a/tools/Linux/kodi.sh.in
++++ b/tools/Linux/kodi.sh.in
+@@ -30,13 +30,33 @@ exec_prefix="@exec_prefix@"
+ datarootdir="@datarootdir@"
+ LIBDIR="@libdir@"
+ APP_BINARY=$LIBDIR/${bin_name}/@APP_BINARY@
+-CRASHLOG_DIR=${CRASHLOG_DIR:-$HOME}
+-KODI_DATA=${KODI_DATA:-"${HOME}/.${bin_name}"} # mapped to special://home/
++export KODI_TEMP="/tmp/kodi"
++CRASHLOG_DIR=${CRASHLOG_DIR:-$KODI_TEMP}
+ WINDOWING=${WINDOWING:-"auto"}
+ 
+ # Workaround for high CPU load with nvidia GFX
+ export __GL_YIELD=USLEEP
+ 
++check_media_hdd() {
++    [ -e /proc/mounts ] || return 0
++
++    exec 9<&0 < /proc/mounts
++    while read DEV MTPT REST; do
++        case $DEV in
++            /dev/sd[a-z][0-9])
++            if [ "$MTPT" == "/media/hdd" ]; then
++                export HOME="$MTPT"
++                break
++            fi
++            ;;
++        esac
++    done
++    exec 0<&9 9<&-
++}
++
++check_media_hdd
++KODI_DATA="${HOME}/.${bin_name}"
++
+ # Fix wasting RAM due to fragmentation
+ export MALLOC_MMAP_THRESHOLD_=131072
+ 
+@@ -213,13 +233,13 @@ do
+   LOOP=0
+   ${KODI_BINARY} $SAVED_ARGS
+   RET=$?
+-  if [ $(( $RET == 65 )) = "1" ]
+-  then # User requested to restart app
+-    LOOP=1
+-  elif [ $(( ($RET >= 131 && $RET <= 136) || $RET == 139 )) = "1" ]
+-  then # Crashed with core dump
+-    print_crash_report
+-  fi
++#  if [ $(( $RET == 65 )) = "1" ]
++#  then # User requested to restart app
++#    LOOP=1
++#  elif [ $(( ($RET >= 131 && $RET <= 136) || $RET == 139 )) = "1" ]
++#  then # Crashed with core dump
++#    print_crash_report
++#  fi
+ done
+ 
+ exit $RET
+diff --git a/xbmc/guilib/guiinfo/SystemGUIInfo.cpp b/xbmc/guilib/guiinfo/SystemGUIInfo.cpp
+index a27bda4..001636d 100644
+--- a/xbmc/guilib/guiinfo/SystemGUIInfo.cpp
++++ b/xbmc/guilib/guiinfo/SystemGUIInfo.cpp
+@@ -58,8 +58,12 @@ std::string CSystemGUIInfo::GetSystemHeatInfo(int info) const
+     m_lastSysHeatInfoTime = CTimeUtils::GetFrameTime();
+ #if defined(TARGET_POSIX)
+     g_cpuInfo.getTemperature(m_cpuTemp);
++#if defined(TARGET_STB_EXTEND)
++    m_gpuTemp = m_cpuTemp;
++#else
+     m_gpuTemp = GetGPUTemperature();
+ #endif
++#endif
+   }
+ 
+   std::string text;
+diff --git a/xbmc/input/InputManager.cpp b/xbmc/input/InputManager.cpp
+index a4a4325..94d81cd 100644
+--- a/xbmc/input/InputManager.cpp
++++ b/xbmc/input/InputManager.cpp
+@@ -558,6 +558,18 @@ bool CInputManager::HandleKey(const CKey& key)
+           useKeyboard = true;
+       }
+     }
++#if defined(TARGET_STB)
++    switch(key.GetVKey()) {
++      case 0x0d:
++      case 0x80:
++      case 0x81:
++      case 0x82:
++      case 0x83:
++        if (iWin == WINDOW_DIALOG_KEYBOARD)
++          useKeyboard = false;
++        break;
++    }
++#endif
+     if (useKeyboard)
+     {
+       // use the virtualkeyboard section of the keymap, and send keyboard-specific or navigation
+diff --git a/xbmc/platform/linux/input/LibInputKeyboard.cpp b/xbmc/platform/linux/input/LibInputKeyboard.cpp
+index 270f574..b93afb9 100644
+--- a/xbmc/platform/linux/input/LibInputKeyboard.cpp
++++ b/xbmc/platform/linux/input/LibInputKeyboard.cpp
+@@ -142,8 +142,37 @@ static const std::map<xkb_keysym_t, XBMCKey> xkbMap =
+   // XBMCK_REWIND clashes with XBMCK_MEDIA_REWIND
+   { XKB_KEY_XF86Phone, XBMCK_PHONE },
+   { XKB_KEY_XF86AudioPlay, XBMCK_PLAY },
+-  { XKB_KEY_XF86AudioRandomPlay, XBMCK_SHUFFLE }
++  { XKB_KEY_XF86AudioRandomPlay, XBMCK_SHUFFLE },
+   // XBMCK_FASTFORWARD clashes with XBMCK_MEDIA_FASTFORWARD
++
++#if defined(TARGET_STB)
++  { KEY_OK            , XBMCK_RETURN      }, // Ok
++  { KEY_EXIT          , XBMCK_ESCAPE      }, // EXIT
++  { KEY_INFO          , XBMCK_i           }, // Info
++  { KEY_SUBTITLE      , XBMCK_l           }, // Subtitle
++  { KEY_TV            , XBMCK_z           }, // TV
++  { KEY_TV2           , XBMCK_z           }, // TV/RADIO
++  { KEY_RADIO         , XBMCK_j           }, // Radio
++  { KEY_AUDIO         , XBMCK_a           }, // Audio
++  { 139               , XBMCK_MENU        }, // Menu
++  { 358               , XBMCK_e           }, // EPG
++  { 388               , XBMCK_y           }, // Teletext
++  { 393               , XBMCK_x           }, // Unknown
++  { KEY_CHANNELUP     , XBMCK_PAGEUP      }, // PageUp
++  { KEY_CHANNELDOWN   , XBMCK_PAGEDOWN    }, // PageDown
++  { KEY_NEXT          , XBMCK_MEDIA_NEXT_TRACK }, // Next
++  { KEY_PREVIOUS      , XBMCK_MEDIA_PREV_TRACK }, // Prev
++  { KEY_VIDEO         , XBMCK_c           }, // Playlist
++  { KEY_LIST          , XBMCK_c           }, // Playlist
++  { 438               , XBMCK_TAB         }, // Context
++  { KEY_BOOKMARKS     , XBMCK_TAB         }, // Portal
++  { 227               , XBMCK_z           }, // Aspectratio
++  { KEY_PROGRAM       , XBMCK_o           }, // Timer
++  { 398               , XBMCK_F1          }, // Red
++  { 399               , XBMCK_F2          }, // Green
++  { 400               , XBMCK_F3          }, // Yellow
++  { 401               , XBMCK_F4          }, // Blue
++#endif
+ };
+ 
+ CLibInputKeyboard::CLibInputKeyboard()
+diff --git a/xbmc/utils/CPUInfo.cpp b/xbmc/utils/CPUInfo.cpp
+index a9150e3..d2c4e2b 100644
+--- a/xbmc/utils/CPUInfo.cpp
++++ b/xbmc/utils/CPUInfo.cpp
+@@ -279,6 +279,12 @@ CCPUInfo::CCPUInfo(void)
+     m_fProcTemperature = fopen("/sys/class/thermal/thermal_zone0/temp", "r");  // On Raspberry PIs
+ 
+   m_fCPUFreq = fopen ("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "r");
++  
++  if (m_fCPUFreq == NULL)
++    m_fCPUFreq = fopen ("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq", "r");
++  if (m_fCPUFreq == NULL)  
++    m_fCPUFreq = fopen ("/sys/devices/platform/brcmstb/cpu_khz", "r");
++
+   if (!m_fCPUFreq)
+   {
+     m_cpuInfoForFreq = true;
+@@ -420,6 +426,30 @@ CCPUInfo::CCPUInfo(void)
+           }
+         }
+       }
++#ifdef TARGET_STB_EXTEND
++      else if (strncmp(buffer, "system type", strlen("system type"))==0)
++      {
++        char *needle = strchr(buffer, ':');
++        if (needle && strlen(needle)>3)
++        {
++          needle+=2;
++          m_cpuModel = needle;
++          StringUtils::Trim(m_cpuModel);
++          StringUtils::ToUpper(m_cpuModel);
++          m_cpuModel.insert(0, "Broadcom ");
++        }
++      }
++      else if (strncmp(buffer, "cpu model", strlen("cpu model"))==0)
++      {
++        char *needle = strchr(buffer, ':');
++        if (needle && strlen(needle)>3)
++        {
++          needle+=2;
++          m_cores[nCurrId].m_strModel = needle;
++          StringUtils::Trim(m_cores[nCurrId].m_strModel);
++        }
++      }
++#endif
+     }
+     fclose(fCPUInfo);
+     // new socs use the sysfs soc interface to describe the hardware
+@@ -628,6 +658,15 @@ bool CCPUInfo::getTemperature(CTemperature& temperature)
+ #if defined(TARGET_DARWIN_OSX)
+   value = SMCGetTemperature(SMC_KEY_CPU_TEMP);
+   scale = 'c';
++#elif defined(TARGET_XCORE)
++  value = 0;
++  scale = 'c';
++  FILE        *p    = fopen("/proc/stb/fp/temp_sensor_avs", "r");
++  if (p)
++  {
++    fscanf(p, "%d", &value);
++    fclose(p);
++  }
+ #else
+   int         ret   = 0;
+   FILE        *p    = NULL;
+diff --git a/xbmc/view/ViewStateSettings.cpp b/xbmc/view/ViewStateSettings.cpp
+index 6012426..7961ba5 100644
+--- a/xbmc/view/ViewStateSettings.cpp
++++ b/xbmc/view/ViewStateSettings.cpp
+@@ -114,7 +114,7 @@ bool CViewStateSettings::Load(const TiXmlNode *settings)
+     if (XMLUtils::GetInt(pElement, XML_SETTINGLEVEL, settingLevel, static_cast<int>(SettingLevel::Basic), static_cast<int>(SettingLevel::Expert)))
+       m_settingLevel = (SettingLevel)settingLevel;
+     else
+-      m_settingLevel = SettingLevel::Standard;
++      m_settingLevel = SettingLevel::Expert;
+ 
+     const TiXmlNode* pEventLogNode = pElement->FirstChild(XML_EVENTLOG);
+     if (pEventLogNode != NULL)
+-- 
+2.7.4
+

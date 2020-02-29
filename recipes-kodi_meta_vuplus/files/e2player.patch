@@ -1,0 +1,22 @@
+diff --git a/system/playercorefactory.xml b/system/playercorefactory.xml
+index 084d52d..98d6a38 100644
+--- a/system/playercorefactory.xml
++++ b/system/playercorefactory.xml
+@@ -18,7 +18,7 @@
+     </player>
+   </players>
+ 
+-  <rules name="system rules">
++  <rules action="prepend" name="system rules">
+     <rule name="mms/udp" protocols="mms|mmsh|udp" player="GstPlayer" />
+     <rule name="lastfm/shout" protocols="lastfm|shout" player="PAPlayer" />
+     <rule name="rtmp" protocols="rtmp" player="videodefaultplayer" />
+@@ -30,6 +30,8 @@
+     <rule name="streams" internetstream="true">
+       <rule name="aacp/sdp" mimetypes="audio/aacp|application/sdp" player="GstPlayer" />
+       <rule name="mp2" mimetypes="application/octet-stream" filetypes="mp2" player="PAPlayer" />
++     <rule name="widevine1" filetypes="mpd" player="VideoPlayer" />
++     <rule name="netflix" filename="*manifest*"  player="VideoPlayer" />
+     </rule>
+ 
+     <!-- DVDs -->
